@@ -1,4 +1,4 @@
-# Analysis of Optimal Pricing Strategies that Maximize the Profit of a Retailer Selling Jeans 
+# Analysis of Optimal Pricing Strategies Maximizing the Profit of a Retailer Selling Jeans 
 
 The key for successful targeting is the knowledge about the customers’ behaviour as well as their preferences. Based on this knowledge, optimal pricing strategies can be determined and thus, the profit can be maximized. Since it is very expensive to target each customer individually, a prerequisite for
 effective targeting is the detection of customer groups that behave similarly and have the same preferences. In order to tackle this challenge, a hierarchical cluster analysis is conducted before the optimal price (maximized profit while considering the willingness-to-pay) is determined.
@@ -19,7 +19,7 @@ __Semester:__ WS 2019/20 <br>
 
 ```
 .
-├── data                         # folder with all data sets (see setup.txt for details)
+├── data                         # folder with all data sets (see setup.txt for details) and the codebook
 ├── code                         # folder which contains the full code as well as all subparts in individual files
 ├── CACI1920_ABothe_576309.pdf   # final paper including all texts
 ├── CACI1920_ABothe_576309.Rmd   # final markdown including code and texts
