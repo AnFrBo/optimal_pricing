@@ -1,0 +1,282 @@
+========================================================================================== 
+GENERAL DESCRIPTION
+==========================================================================================
+Note that the complete data has been filtered using the following criteria:
+
+1) Based on response time: 
+	- CBC response time: Exclusion of fastest 2% (minimum 
+	  response time: 1.2 min.) and slowest 5% (maximum 
+	  response time: 15.8 min.)
+ 
+	- Total response time: Exclusion of fastest 5% (minimum 
+	  response time: 4.8 min.) and slowest 5% (maximum 
+	  response time: 33.1 min.)
+
+2) Based on the number of chosen "no-buy" options in CBC:
+	- Exclusion of respondents who chose the "no-buy" option 
+          more than 10 times out of 14 choice tasks 
+
+
+==========================================================================================
+CHOICEDATA
+==========================================================================================
+Note that cbcData has 43.680 (= 780 x 14 x 4) rows and 17 columns.
+
+Variable name	Description
+--------------  ------------
+
+id		- Index for the respondents 
+		- Please note that this is not necessarily sequential. 
+		- Total number of ids is 780.
+
+cs		- Index of the choice tasks 
+		- 14 choice tasks per id
+		- Choice tasks (design) are not the same for all ids
+
+alt		- Index of the alternative in the choice tasks
+		- 4 alternatives per choice task
+		- alt = 4 is the "no-buy" option
+		
+
+		Dummy coded variables
+		----------------------
+
+response	- Alternative chosen by a respondent in a particular choice task
+		- = 1, if the respondent chose the alternative, otherwise 0
+
+og		- "No-buy" option
+		- Note that og = 1, when alt = 4
+
+		Attribute: Brand
+brandM		- Brand of hotdeal offer
+brandL		- Levi's
+brandT		- Tommy Hilfiger
+brandG		- Guess
+
+		Attribute: Fit
+fitSk		- Skinny/Slim
+fitSt		- Straight
+fitBo		- Boot cut
+fitWi		- Wide
+
+		Attribute: Color
+blue		- Blue
+lblue		- Light blue
+black		- Black
+	
+
+		Linear coded variables
+		-----------------------
+price		- in 100€, varies from 0.69 - 1.09 (e.g., 69€ - 109€)
+		- Note that price = 0, when og = 1
+
+
+========================================================================================== 
+INDIVDATA
+==========================================================================================
+Note that indivData has 780 rows and 60 columns. Here each row represents one respondent.
+
+Variable name	Description
+--------------  ------------
+
+id		- Index for the respondents (same as in cbcData)
+		- Note that this is not necessarily sequential. 
+		- Total number of ids is 780.
+
+
+ 		Purchase behavior (column 2):
+		------------------------------
+		Q: Which of the following best describes how often you typically 
+		purchase jeans?
+
+Q1Pur		- =1: Up to once a year; =2: Every 4-6 months; =3: Every 2-3 months; 
+		  =4: Once a month or more 
+
+
+		Brand awareness (columns 3-13):
+		-------------------------------
+		Q: Are you aware of these brands for jeans available in the market?
+
+Q2Aw1		Levi's
+Q2Aw2		Wrangler 
+Q2Aw3		Lee
+Q2Aw4		Tommy Hilfiger
+Q2Aw5		Diesel
+Q2Aw6		GAP
+Q2Aw7		American Eagle
+Q2Aw8		Guess	
+Q2Aw9		Esprit
+Q2Aw10		S.Oliver
+Q2Aw11		None of the above
+
+		- = 1, if respondent is aware of the brand, otherwise 0 
+		- Note that Q2Aw11 = 1 means that the respondent is not aware of any of 
+		the 10 brands e.g., Q2Aw1-Q2Aw10 are 0 by definition. 
+		
+
+		Purchase intention (columns 14-23):
+		-----------------------------------
+		- Source: Bergkvist & Rossiter (2009). Tailor-made single-item measures of doubly
+		concrete constructs. International Journal of Advertising, 28(4), 607-621.
+
+		Q: If you were going to buy jeans, how likely would you be to try the 
+		following brands?
+
+Q3Pi_r1		Levi's
+Q3Pi_r2		Wrangler 
+Q3Pi_r3		Lee
+Q3Pi_r4		Tommy Hilfiger
+Q3Pi_r5		Diesel
+Q3Pi_r6		GAP
+Q3Pi_r7		American Eagle
+Q3Pi_r8		Guess	
+Q3Pi_r9		Esprit
+Q3Pi_r10	S.Oliver
+
+		- Items were evaluated on a 7-point Likert scale:
+		  =1: No chance or almost no chance; =2: Slight possibility; 
+		  =3: Some possibility; =4: Fairly good possibility; 
+		  =5: Probable; =6: Very probable; =7: Certain or practically certain
+
+
+		Brand credibility (columns 24-35):	
+		----------------------------------	
+		- Source (originally 7 items): Erdem & Swait (1998). Brand Equity as a 
+		Signaling Phenomenon. Journal of Consumer Psychology. 7(2), 131-157. 
+
+		- Source (4 items): Erdem, Swait & Louviere (2002). The impact of 
+		brand credibility on consumer price sensitivity. International 
+		Journal of Research in Marketing. 19(1), 1-19. 
+
+		Q: Below are a number of statements regarding the brand "Levi's". 
+		Please read each one carefully and indicate to what extent you agree 
+		or disagree with each statement.
+
+Q4CredL_r1	This brand delivers what it promises.
+Q4CredL_r2	This brand's product claims are believable.			
+Q4CredL_r3	This brand has a name you can trust.
+Q4CredL_r4 	This brand reminds of someone who's competent and knows what he/she is 
+		doing.
+
+		- Items were evaluated on a 7-point Likert scale:
+		  =1: strongly disagree; =2: disagree; =3: slightly disagree; 
+		  =4: neither agree nor disagree; =5: slightly agree; 
+		  =6: agree; =7: strongly agree
+
+Q5CredG_r1-4	- Same question, statements and rating (see above) for brand "Guess"
+Q6CredT_r1-4	- Same question, statements and rating (see above) for brand "T.Hilfiger"
+
+
+		Belief (column 36):
+		-------------------
+Q7Belief	Q: If you had to guess, what do you believe was the outcome of the 
+		hotdeal lottery?
+
+		- =1: Tommy Hilfiger; =2: Guess; =3: Levi's
+
+
+		Mystery products prior knowledge (columns 37-38):
+		------------------------------------------------- 
+Q8Myst	 	Q: Did you know about the existence of mystery products/services 
+		before you started this survey?
+
+		- =1: Yes; =2: No
+
+Q9Myst		Q: Please give an example of the mystery product/service you know.
+
+		- Coded as a character
+		- Note that response for this question is only required of 
+		respondents who chose Q8Myst=1.  
+
+
+		Mystery products prior experience (columns 39-40):		
+		--------------------------------------------------
+Q10Myst		Q: Have you purchased a mystery product/service before?
+
+		- =1: Yes; =2: No
+		- Note this question was only seen by respondents who answered  
+		Q8Myst=1. If Q8Myst=2, then Q10Myst=NA. 
+
+Q11Myst		Q: Please give an example of the mystery product/service you 
+		have purchased before.
+
+		- Coded as a character	
+		- Note that response for this question is only required of 
+   		respondents who chose Q10Myst=1.  
+
+
+		Mystery products future purchase intention (column 41):
+		-------------------------------------------------------
+Q12Myst		Q: Would you consider buying a mystery product/service in the future?
+
+		- =1: Yes; =2: No   
+
+
+		Cross-cultural optimism scale (columns 42-50):
+		----------------------------------------------
+		- Source: Coelho et al. (2018). Optimism scale: Evidence of 
+		psychometric validity in two countries and correlations 
+		with personality. Personality and Individual Differences. 134, 245-251
+
+		Q: Please read each of the following statements carefully. Then 
+		indicate your level of agreement/disagreement with each statement.
+
+Q13Opti_r1	I believe that I will accomplish the main goals of my life.
+Q13Opti_r2	When I think about the future, I am positive.
+Q13Opti_r3	More good than bad things happen to me.
+Q13Opti_r4	I think everything will go wrong. (*)
+Q13Opti_r5	I see each challenge as an opportunity for success.
+Q13Opti_r6	I find positive aspects even when things go wrong.
+Q13Opti_r7	I see the positive side of things.
+Q13Opti_r8	I am confident to overcome problems.
+Q13Opti_r9	I am confident about the future.
+
+		- Items were evaluated on a 7-point Likert scale:
+		  =1: strongly disagree; =2: disagree; =3: slightly disagree; 
+		  =4: neither agree nor disagree; =5: slightly agree; 
+		  =6: agree; =7: strongly agree
+		- (*) Note this is a negatively worded item. It has already been reverse
+		scored and brought to the same scale! You can simply calculate the total 
+		score and directly use them for analysis.
+
+
+		Demographics (columns 51-60):
+		-----------------------------
+Q14Demo 	Gender
+		- =1: Female; =2: Male; =3: Other gender
+
+Q15Demo 	Age	
+		- Coded as a numeric variable
+
+Q16Demo 	Country of origin
+		- Coded as a character
+ 
+Q17Demo 	Household size
+		- =1: Single person; =2: Two; =3: Three or more
+
+Q18Demo 	Net annual household income
+		- =1: Less than $20,000; =2: $20,000 - $39,999; =3: $40,000 - $59,999;
+		  =4: $60,000 - $79,999; =5: $80,000 - $99,999; =6: $100,000 or more
+
+Q19Demo 	Employment status
+		- =1: Employed full-time; =2: Employed part-time; =3: Self-employed;
+		  =4: Not employed; =5: Retired
+	
+Q20Demo 	Education level
+		- =1: Less than High school; =2: High school; =3: Vocational or 
+		Associate degree; =4: Bachelor’s; =5: Master’s or PhD
+
+Q21Demo 	Marital status
+		- =1: Single; =2: Married or Domestic partnership; =3: Separated; 
+		  =4: Divorced; =5: Widowed
+
+Q22Demo 	Student?
+		- =1: Yes; =2: No
+
+Q23Com		General comments 
+		- Coded as a character 
+	
+==========================================================================================
+
+
+	
