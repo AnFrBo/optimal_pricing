@@ -1,0 +1,671 @@
+---
+title: "Customer Analytics and Customer Insights WS19/20 -- Final Assignment"
+author: "Anna Franziska Bothe (576309)"
+fontsize: 12pt
+geometry: margin = 1.25in
+header-includes:
+   - \usepackage{setspace}
+   - \usepackage{fancyhdr}
+   - \usepackage{lipsum}
+   - \pagestyle{fancy}
+   - \onehalfspacing
+   - \fancyhead[CO, CE]{Anna Franziska Bothe (576309)}
+   - \usepackage{float} 
+   - \floatplacement{figure}{H}
+   - \pagenumbering{arabic}
+   - \usepackage{caption}
+   - \captionsetup[figure]{font=footnotesize}
+   - \captionsetup[table]{font=footnotesize}
+   - \usepackage[dvipsnames]{xcolor}
+output: pdf_document
+
+---
+
+
+```{r include = FALSE, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+#insert needed libraries here
+library(fpc) #for cluster statistics
+library(mlr) #for creating dummy variables
+library(psych) #for factor analysis
+library(cluster) #for silhouette plot
+library(RColorBrewer) #for coloring silhouette plotlibrary(plyr)
+library(MASS)
+library(png)
+library(grid)
+library(gridExtra)
+library(knitr) #for knitting document and include_graphics function
+
+```
+
+```{r dataloading, include=F}
+
+#read in data
+setwd("/Users/Bisa/Documents/Studium/Masterstudium/3. Semester/CACI I/Final Assignment")
+
+idList <- read.csv("idListJeans.csv")
+mxl_betai <- read.csv("mxl_betaiJeans.csv")
+indivData <- read.csv("indivDataJeans.csv")
+MarketSimulation <- read.csv("marketsimulationJeans.csv")
+id <- idList$X576309 # REPLACE WITH YOUR STUDENT ID 
+id <- as.data.frame(id)
+mxl_betai <- merge(mxl_betai,id, by="id")
+indivData <- merge(indivData, id, by="id")
+# check the dimensions
+nrow(indivData) == 650 # the answer must be “TRUE”
+nrow(mxl_betai) == 650 # the answer must be “TRUE”
+
+mxl_betai <- cbind(mxl_betai[,1], mxl_betai[,10:11],mxl_betai[,2:9])
+colnames(mxl_betai)[1] <- "id"
+
+rm(idList, id)
+
+```
+
+```{r feature engineering, include=F}
+
+#topbrands
+for(i in 1:nrow(indivData)){
+  indivData$topbrands[i] <- indivData$Q2Aw_1[i]+indivData$Q2Aw_4[i]+indivData$Q2Aw_5[i]+indivData$Q2Aw_9[i]
+}
+
+dummy_top <- createDummyFeatures(as.factor(indivData$topbrands), target = character(0L),
+                                 cols = NULL)
+indivData <- cbind(indivData, dummy_top)
+
+colnames(indivData)[62:66] <- c("AW_Topbrand_None", "AW_Topbrand_1", "AW_Topbrand_2", "AW_Topbrand_3", "AW_Topbrand_All")
+
+#purchase prob of all brands
+colnames(indivData)[14:23] <- c("Levi's", "Wrangler", "Lee", "Tommy", "Diesel", "GAP", "American Eagle",
+                                "Guess", "Esprit", "S.Oliver")
+
+#age groups
+indivData$agegroup <- ifelse(indivData$Q15Demo <= 23, "below Q1", 
+                             ifelse(indivData$Q15Demo > 23 & indivData$Q15Demo <= 24, "Q1-Median",
+                                    ifelse(indivData$Q15Demo > 24 & indivData$Q15Demo <= 27, "Median-Q3",
+                                           ifelse(indivData$Q15Demo >27 & indivData$Q15Demo <= 35, "Age Q3-35", "Elders"))))
+
+#agegroups regarding purchase probability (brands: Wrangler, Tommy, American Eagle, Esprit --> select two)
+indivData$agegroup <- as.factor(indivData$agegroup)
+indivData$agegroup <- factor(indivData$agegroup,
+                             levels = levels(indivData$agegroup)[c(2,5,4,1,3)])
+
+par(mfrow=c(2,2))
+list <- list(indivData[,c(15,17,20,22)])
+for(i in 1:4){
+  boxplot(list[[1]][[i]]~indivData$agegroup,
+          data=indivData,
+          main="Purchase Probability",
+          xlab=paste(colnames(list[[1]][i])),
+          ylab="Prob. of Purchase",
+          col="grey",
+          border="brown")
+}
+
+#aggregated cred
+for(i in 1:nrow(indivData)){
+  indivData$CredL[i] <- sum(mean(indivData$Q4CredL_r1[i]),mean(indivData$Q4CredL_r2[i]),mean(indivData$Q4CredL_r3[i]),mean(indivData$Q4CredL_r4))/4
+  indivData$CredG[i] <- sum(mean(indivData$Q5CredG_r1[i]),mean(indivData$Q5CredG_r2[i]),mean(indivData$Q5CredG_r3[i]),mean(indivData$Q5CredG_r4[i]))/4
+  indivData$CredT[i] <- sum(mean(indivData$Q6CredT_r1[i]),mean(indivData$Q6CredT_r2[i]),mean(indivData$Q6CredT_r3[i]),mean(indivData$Q6CredT_r4[i]))/4
+  }
+
+#optimistic scale (factor analysis)
+  #ML1: future optimist
+  #ML2: past optimist
+
+a.fa <- fa(indivData[,42:50], fm = "ml", nfactors = 2, 
+           rotate = "varimax")
+a.fa
+
+indivData$future <- a.fa$scores[,1]
+indivData$past <- a.fa$scores[,2]
+head(a.fa,10)
+
+#aggregation of regions/europeans-non-europeans/cultures
+indivData$regions <- ifelse(indivData$Q16Demo == "Canada" | indivData$Q16Demo == "United States", "North America",
+                            ifelse(indivData$Q16Demo == "Argentina" | indivData$Q16Demo == "Brazil" |
+                                     indivData$Q16Demo == "Colombia" | indivData$Q16Demo == "Guatemala" |
+                                     indivData$Q16Demo == "Trinidad & Tobago" |
+                                     indivData$Q16Demo == "Peru" | indivData$Q16Demo == "Venezuela", "South America", 
+                                   ifelse(indivData$Q16Demo == "Afghanistan" | indivData$Q16Demo == "Pakistan" |
+                                            indivData$Q16Demo == "India" |
+                                            indivData$Q16Demo == "Sri Lanka", "South Asia",
+                                          ifelse(indivData$Q16Demo == "China" | indivData$Q16Demo == "Taiwan" | indivData$Q16Demo == "Vietnam" |
+                                                   indivData$Q16Demo == "Malaysia" | indivData$Q16Demo == "Thailand" | 
+                                                   indivData$Q16Demo == "Philippines" |
+                                                   indivData$Q16Demo == "Korea South", "South-East Asia",
+                                                 ifelse(indivData$Q16Demo == "Russian Federation" | indivData$Q16Demo == "Kazakhstan", 
+                                                        "North-Central Asia",
+                                                        ifelse(indivData$Q16Demo == "Algeria" | indivData$Q16Demo == "Azerbaijan" | indivData$Q16Demo == "Egypt" | indivData$Q16Demo == "Algeria" |
+                                                                 indivData$Q16Demo == "Iran" | indivData$Q16Demo == "Lebanon" | 
+                                                                 indivData$Q16Demo == "Turkey" |
+                                                                 indivData$Q16Demo == "Morocco" | indivData$Q16Demo == "Syria",
+                                                               "Arab States/ Western Asia",
+                                                               ifelse(indivData$Q16Demo == "Australia", "Australia",
+                                                                      ifelse(indivData$Q16Demo == "Angola" | indivData$Q16Demo == "Ghana" |
+                                                                               indivData$Q16Demo == "Nigeria" | indivData$Q16Demo == "Togo" |
+                                                                               indivData$Q16Demo == "Zambia", "Africa excl. North",
+                                                                             ifelse(indivData$Q16Demo == "Austria" | indivData$Q16Demo == "Belgium" |
+                                                                                      indivData$Q16Demo == "Denmark" | indivData$Q16Demo == "France" |
+                                                                                      indivData$Q16Demo == "Germany" | indivData$Q16Demo == "Netherlands" |
+                                                                                      indivData$Q16Demo == "Sweden" | indivData$Q16Demo == "Switzerland" |
+                                                                                      indivData$Q16Demo == "United Kingdom", "North-West Europe", "South-East Europe")))))))))
+
+
+
+indivData$europe <- ifelse(indivData$regions == "North-West Europe" | indivData$regions == "South-East Europe", "European", "Non-Europeans")
+
+indivData$cultural <- ifelse(indivData$regions == "North-West Europe" | indivData$regions == "South-East Europe" | indivData$regions == "Australia" | indivData$regions == "North America", 
+                             "Western",
+                             ifelse(indivData$regions == "Arab States/ Western Asia", 
+                                    "Arabic",
+                                    ifelse(indivData$regions == "North-Central Asia" | indivData$regions == "South-East Asia" | indivData$regions == "South Asia",
+                                           "Asian", "Others")))
+
+      #western
+      #arabic
+      #asian
+      #other (latin, african)
+
+dummy_europe <- createDummyFeatures(indivData$europe, target = character(0L),
+                                    cols = NULL)
+dummy_cultural <- createDummyFeatures(indivData$cultural, target = character(0L),
+                                    cols = NULL)
+
+indivData <- cbind(indivData, dummy_europe, dummy_cultural)
+
+#dummy coding of gender (create ability to interpret percentages of gender in cluster)
+indivData$female <- ifelse(indivData$Q14Demo == 1, 1, 0)
+indivData$male <- ifelse(indivData$Q14Demo == 2, 1, 0)
+indivData$divers <- ifelse(indivData$Q14Demo == 3, 1, 0)
+
+#randomly dummy coded variables, check out if impact; otherwise, delete
+dummy_freqpur <- createDummyFeatures(as.factor(indivData$Q1Pur), target = character(0L),
+                                    cols = NULL)
+colnames(dummy_freqpur) <- c("<=1", "3-4times", "4-6times", ">=12times")
+
+dummy_belief <- createDummyFeatures(as.factor(indivData$Q7Belief), target = character(0L),
+                                    cols = NULL)
+colnames(dummy_belief) <- c("TisM", "GisM", "LisM")
+
+dummy_income <- createDummyFeatures(as.factor(indivData$Q18Demo), target = character(0L),
+                                    cols = NULL)
+colnames(dummy_income) <- c("<20k", "20-40k", "40-60", "60-80", "80-100", ">100")
+
+dummy_employment <- createDummyFeatures(as.factor(indivData$Q19Demo), target = character(0L),
+                                    cols = NULL)
+colnames(dummy_employment) <- c("fulltime", "parttime", "self", "notemployed", "retired")
+
+dummy_edu <- createDummyFeatures(as.factor(indivData$Q20Demo), target = character(0L),
+                                    cols = NULL)
+colnames(dummy_edu) <- c("<highschool", "highschool", "somedegree", "BA", "MA/PhD")
+
+dummy_agegroups <- createDummyFeatures(indivData$agegroup, target = character(0L),
+                                     cols = NULL)
+
+indivData <- cbind(indivData, dummy_freqpur, dummy_belief, dummy_income, dummy_employment, dummy_edu, dummy_agegroups)
+
+#recode variables
+indivData$Q22Demo <- ifelse(indivData$Q22Demo == 1, 1, 0)
+indivData$Q8Myst <-  ifelse(indivData$Q8Myst == 1, 1, 0)
+indivData$Q12Myst <-  ifelse(indivData$Q12Myst == 1, 1, 0)
+
+#delete all variables that are not needed
+remove(dummy_agegroups, dummy_belief, dummy_cultural, dummy_edu, dummy_employment, dummy_europe,
+       dummy_freqpur, dummy_income, dummy_top, i, list, a.fa)
+indivData <- indivData[,-c(1,2,24:36,38,40,42:51,53:58,60,61,67,73:75)]
+
+par(mfrow=c(1,1))
+
+```
+
+```{r clusteranalysis, include=F}
+
+mxl_betai_cl <- mxl_betai[,-1]
+jeans_dist <-dist(apply(mxl_betai_cl,2,scale))
+jeans_clust <- hclust(jeans_dist, method ="ward.D2")
+plot(jeans_clust)
+plot(rev(jeans_clust$height^2)[1:50], type="b")
+
+jeans_clust_seg <- cutree(jeans_clust, k=3)
+str(jeans_clust_seg)
+table(jeans_clust_seg)
+
+seg.summ <- function (data , groups) 
+{aggregate (data , list(groups), function (x) mean(as.numeric (x)))}
+
+seg.summ(mxl_betai_cl,jeans_clust_seg)
+
+cluster.stats(d = dist(apply(mxl_betai_cl,2,scale)), clustering = jeans_clust_seg) #check dunn and clus.avg.silwidths
+#sil plot
+sil <- silhouette(jeans_clust_seg, jeans_dist)
+#quartz()
+#plot(silhouette(jeans_clust_seg, jeans_dist), col= c("red", "blue", "darkgreen"), main = "Silhouette Plot")
+
+#https://www.datanovia.com/en/lessons/cluster-validation-statistics-must-know-methods/#computing-cluster-validation-statistics-in-r
+#Silouette
+#Observations with a large Si (almost 1) are very well clustered.
+#A small Si (around 0) means that the observation lies between two clusters.
+#Negative S_i are probably placed in the wrong cluster.
+
+#description of cluster, merge results with individual data set
+indivData <- cbind(indivData, jeans_clust_seg)
+
+absolutes <- function (data , groups) {aggregate (data , list(groups), function (x) sum(as.numeric (x)))}
+absolutes(indivData,jeans_clust_seg)
+seg.summ(indivData,jeans_clust_seg)
+
+#prep clusters for market simulation
+mxl_cl <- cbind(mxl_betai_cl, jeans_clust_seg)
+
+cl1 <- mxl_cl[which(mxl_cl$jeans_clust_seg == 1),]
+cl1 <- cl1[,-c(11)]
+cl2 <- mxl_cl[which(mxl_cl$jeans_clust_seg == 2),]
+cl2 <- cl2[,-c(11)]
+cl3 <- mxl_cl[which(mxl_cl$jeans_clust_seg == 3),]
+cl3 <- cl3[,-c(11)]
+
+```
+
+The key for successful targeting is the knowledge about the customers' behaviour as well as their preferences. Based on this knowledge, optimal pricing strategies can be determined and thus, the profit can be maximized. To understand and predict the customers' behaviour, a data analysis is necessary. 
+
+The underlying data set was collected within the seminar "Customer Analytics and Customer Insights" in 2019/20. The survey deals with the preferences regarding the purchase of 10 different jeans with a focus on Levi's, Tommy Hilfiger, Guess and a mystery product. After data cleaning, in total 780 respondents participated. For the analysis only a subset of 650 respondents is selected -- depending on the matrikel number functioning as an unique ID.
+
+\textbf{Cluster Analysis} 
+
+Since it is very expensive to target each customer individually, a prerequisite for effective targeting is the detection of customer groups that behave similarly and have the same preferences. In order to find these groups a hierarchical cluster analysis with help of the ward (Ward.D2) algorithm is conducted. Based on the dendrogram and an elbow plot, three clusters are chosen. While trying to maximize the homogeneity within groups, three clusters seem to be a reasonable amount of target groups for developing marketing targeting campaigns. 
+
+The 650 observations are split into groups of 136, 180 and 334 respondents. The following table shows the mean part-worths and the importance per attribute of each cluster as well as the willingness-to-pay (WTP) for all non-price attributes levels in each cluster:
+
+\begin{table}[H]
+\footnotesize
+\centering
+\begin{tabular}{l|ccc|ccc|ccc}
+\footnotesize
+  & \multicolumn{3}{c|}{Cluster 1} & \multicolumn{3}{c|}{Cluster 2} & \multicolumn{3}{c}{Cluster 1} \\
+  & \multicolumn{3}{c|}{(136 respondents)} & \multicolumn{3}{c|}{(180 respondents)} & \multicolumn{3}{c}{(334 respondents)} \\
+ Attributes & PW & IMP & WTP & PW & IMP & WTP & PW & IMP & WTP \\
+ \hline\hline
+ Price & & \textcolor{red}{\textbf{55.59}} & & & 24.49 & & & 29.80 & \\
+ \hline
+ Mystery & -0.16 & 7.18 & -2.02 & -0.31 & 8.76 & -14.23 & -0.46 & \textcolor{red}{\textbf{31.56}} & -33.58  \\
+ Hilfiger & 0.23 &		& 3.15 & -0.06	& & -10.59 & 0.19	& & -20.03 \\
+ Guess &	-0.06 & &		-0.67 &	-0.32	& &	-14.31 &	-0.88	& &	\textcolor{red}{\textbf{-42.36}} \\
+ Levi's &	-0.01	& &	0& 	0.69	& &	0	& 1.14 & &		0 \\
+ \hline
+ Straight &	0.59 & 24.23 &	-0.37 & 0.66 & \textcolor{red}{\textbf{62.24}} & -51.12 & 1.07 & 31.47	& \textcolor{red}{\textbf{12.40}} \\
+ Boot Cut	& -0.50	&	& -14.73 & -2.03 & & -89.45 &	-0.61	& & -22.77 \\
+ Wide	& -0.70	& &	-17.44 &	-2.89	& &	-101.67 &	-0.94	& &	-29.84 \\
+ Skinny &	0.61 & &		0 & 	4.26 & &		0 &	0.48 & &		0 \\
+ \hline
+ Black &	0.41 &	13.00 &	\textcolor{red}{\textbf{6.91}} &	0.16 &	4.52 &	\textcolor{red}{\textbf{-0.25}}	& 0.17 &	7.16 &	1.28 \\
+ Light Blue &	-0.30	 & &	-2.44 &	-0.34	& &	-7.38 &	-0.29 & &		-8.33 \\
+ Blue	& -0.11	& &	0 &	0.18 & &		0 &	0.11 & &		0 \\
+\end{tabular}
+ \caption{Results of cluster analysis (PW = part-Worth, IMP = importance, WTP = willingness-to-pay)}
+    \label{tab:clusters}
+\end{table}
+
+\vspace{-5mm}
+
+As observed, group 1 cares a lot about the price which is the most important feature. It is more than double as important as for the other groups. Brand is the least important attribute. However, they prefer -- as the only group -- Hilfiger over Levi's.
+
+In contrast, the brand as well as the fit are almost equally important for group 3. The importance for the brand is about four to five times higher as for the other groups. They would pay about 43 Euro less for a Guess than for a Levi's jeans. Levi's jeans are strongly preferred over any other brand. 
+
+Group 2 does not differentiate a lot between the mystery product and the jeans brands. However, the brand is not that important for this group anyway. The fit is highly important though. The importance of the fit for group 2 is double as high as for any other group. They dislike wide and boot cut jeans a lot; they would pay about 102 Euro less for a wide than for a skinny jeans. This is by far the biggest range of the WTP between two attribute levels. 
+
+Group 1 does not differentiate a lot between straight and skinny fit. Group 3 even prefers straight legs over a skinny fitting jeans. Nonetheless, all groups dislike the wide or boot cut jeans.
+
+Group 1 and 3 prefer black jeans slightly over blue jeans. However, Group 2 prefers blue jeans even though they also like black jeans. The color is the least important feature for group 2 and 3. 
+
+The silhouette width gives an indication of how close a data point is to the neighboring clusters data points. The distance can be from -1 (data point might be assigned to the wrong cluster) to 1 (perfectly separated data point). The value 0 indicates that a data point is very close to the decision boundary whether it belongs one or another cluster.
+
+```{r fig.width=6, fig.height=4, fig.cap = "\\label{fig:sil}The silhouette plot indicates how well the observations are clustered", include = T}
+
+plot(silhouette(jeans_clust_seg, jeans_dist), col= c("red", "blue", "darkgreen"), main = "Silhouette Plot", cex.main=1.1, cex.lab=1, cex.names = 1)
+
+```
+
+\vspace{-5mm}
+
+As observed in the silhouette plot, cluster 1 and 3 contain observations that probably belong to another cluster. Cluster 2 has the highest average silhouette width with 0.3. The negative values of cluster 1 and 3 obviously have an impact on their average silhouette width of 0.12 and 0.13 which is quite low. 
+
+The average distance between clusters is 4.70 and the average distance within clusters 3.54 which also shows that the clusters are very similar to each other.
+
+An explanation for the unfavorable results might be the homogeneity among respondents. More than 88\% of the respondents are 30 or younger. At the same time, the education level is very high with about 77\% having a Bachelor, Master or PhD. About 88\% come either from an Asian or western culture. In general, all are optimistic people. Characteristics are highly correlated with preferences and behaviour. Hence, it is not surprising that the clusters are very homogeneous.
+
+However, it is still possible to characterize the cluster:
+
+\begin{table}[H]
+\footnotesize
+\centering
+\begin{tabular}{ccp{9.5cm}l}
+ \hline
+ Cluster & No. & Characteristics & Synonyms \\
+ \hline\hline
+ 1 & 136 & Very young and some older respondents, in average half a year older than cluster 2, price sensitive, low brand awareness, high purchase probability, like Hilfiger, least optimistic & Bargain Hunters \\
+ 2 & 180 & In average youngest group with about 62\% females and 74\% students, interested in fashion, most optimistic about the future & Fashionistas \\
+ 3 & 334 & Oldest group, only group with slightly more males, know exactly what they want (Levi's and Lee), highest income on average, most optimistic about the past & Originals \\
+ \hline
+\end{tabular}
+ \caption{Characteristics of the clusters 1 to 3 formed by the conducted cluster analysis}
+    \label{tab:clusterrecap}
+\end{table}
+
+\vspace{-5mm}
+
+The respondents of the first cluster consider Hilfiger as slightly more credible than Levi's which it in line with the results of the higher WTP for a Hilfiger than for a Levi's jeans. The awareness of jeans brands is compared to other group almost always the lowest and almost 50\% of the respondents know none or only 1-2 of the top brands which are the three most known brands (Levi's, Tommy Hilfiger, Diesel, Esprit). Interestingly, at the same time they have the highest purchasing probability of 8 of 9 brands (except for Levi's cluster 3 has the highest probability). Even though they seem not to have a lot of knowledge about jeans brands, they are willing to buy them. Also, the cluster is very price sensitive and prefers low prices regardless of the brand. Therefore, they are considered to be the Bargain Hunters. The Bargain Hunters are in comparison to the other group less optimistic. Only 35\% think the Mystery product might be their favourite jeans: Tommy Hilfiger. In comparison: about 62\% and 52\% of the other groups think that the mystery product is their favourite jeans brand.
+
+The Fashionistas build the second cluster. They are very optimistic about their future which is in line with the highest score of 62\% that the mystery product is their favourite jeans brand Levi's. They are really into fashion. Out of 9 brands they are the most aware of 7. About 70\% of the respondents know at least 3 of the 4 top brands and approx. 62\% are girls. Levi's has the highest purchase probability which indicates that it is the favourite brand of the Fashionistas. This indication is supported by the results of table \ref{tab:clusters}.
+
+Last but not least, many academic respondents are grouped -- with almost 80\% of the group members who have either a Bachelor, Master or PhD degree. Moreover, they are into old jeans brands like Lee and Levi's. They have the highest awareness for Lee and the highest purchase probability for both brands. Those brands are the only once founded in the 19th century and are known as the original brands. Hence, the group is named the "Originals". About 29\% of the Originals are older than 27. The Originals form 70\% of the top income class with an income of >100k Euro per year. In contrast to all other groups, more men (60\%) than women are in this group. In comparison to the Fashionistas, the Originals are a little less optimistic.
+
+\textbf{Market Share}
+
+```{r MS, include=F}
+
+#all products of given market simulation
+
+  #total market
+MarketSimulation$price <- MarketSimulation$price/100
+MarketSimulation
+
+mxl_betai <- mxl_betai[,-1]
+head(mxl_betai)
+head(MarketSimulation)
+
+predict.mxl <- function(X, theta) {
+  eu <- exp(as.matrix(X) %*% t(theta))
+  p <- t(eu) / colSums(eu)
+  #  return(p)
+  return(colMeans(p))
+}
+
+tmp<-predict.mxl(MarketSimulation, mxl_betai)
+tmp
+
+  #per cluster
+mxl_cl <- cbind(mxl_betai, jeans_clust_seg)
+
+cl1 <- mxl_cl[which(mxl_cl$jeans_clust_seg == 1),]
+cl1 <- cl1[,-11]
+cl2 <- mxl_cl[which(mxl_cl$jeans_clust_seg == 2),]
+cl2 <- cl2[,-11]
+cl3 <- mxl_cl[which(mxl_cl$jeans_clust_seg == 3),]
+cl3 <- cl3[,-11]
+
+tmp_cl1 <-predict.mxl(MarketSimulation, cl1)
+tmp_cl1
+
+tmp_cl2 <-predict.mxl(MarketSimulation, cl2)
+tmp_cl2
+
+tmp_cl3 <-predict.mxl(MarketSimulation, cl3)
+tmp_cl3
+
+```
+
+In the given market simulation all products are skinny, blue jeans. Only the brands and prices vary.
+
+\begin{table}[H]
+\footnotesize
+\centering
+\begin{tabular}{lccccc}
+ \hline
+ Brand & Price & Total MS & Bargain Hunters MS & Fashionistas MS & Originals MS \\
+ \hline\hline
+ Mystery & 70 & 0.23 & 0.28 & 0.29 & 0.18 \\
+ Hilfiger & 79 & 0.23 & 0.25 & 0.20 & 0.23 \\
+ Guess & 69 & 0.23 & 0.33 & 0.32 & 0.13 \\
+ Levi's & 99 & 0.18 & 0.06 & 0.16 & 0.25 \\
+ None & 0 & 0.14 & 0.08 & 0.04 & 0.22 \\
+ \hline
+\end{tabular}
+ \caption{The market shares (MS) of all brands in the total market and in each cluster}
+    \label{tab:ms}
+\end{table}
+
+\vspace{-5mm}
+
+Since the Fashionistas are very optimistic about the mystery product, the market share is very high. It is also high for the Bargain Hunters . This is due to their price sensitivity. As shown in table \ref{tab:clusters}, the price is the most important feature for the Bargain Hunters and the mystery product is the purchasable good with a lower price than all other brands except Guess. In fact, the Bargain Hunters mystery market share decreases with an increasing price. In contrast, the Originals know what they want: Levi's. Even though the price is way higher than for the other jeans, Levi's has the biggest market share. The high value of none derives from the fact that only skinny, blue jeans are offered. But the Originals clearly prefer a straight fit.
+
+The effect of a changing price from 0 to 200 on the market share of the mystery with no competitive reaction can be observed in figure \ref{fig:msmystery}.
+
+```{r fig.width=6, fig.height=4, fig.cap = "\\label{fig:msmystery}The market share of the mystery product with no competitive reaction", include = T}
+
+brand <- 1
+prices <- seq(0, 2, 0.01)
+
+X <- MarketSimulation
+share <- matrix(0, length(prices), nrow(X))
+
+for (k in seq_along(prices)) {
+  X[brand, "price"] <- prices[k]
+  share[k,] <- predict.mxl(X, mxl_betai)
+}
+
+prices_ms <- prices*100
+share_ms <- share*100
+
+a <- c("Mystery", "Hilfiger", "Guess", "Levi's", "None")
+row.names(MarketSimulation) <- a
+matplot(prices_ms, share_ms, type = "l", lty = 1, yaxt = "n", xaxt= "n", xlab = "Price", ylab = "Share in %", 
+        main = "Market Structure for Different Prices of the Mystery Product", cex.main=1.1, cex.lab=0.9, ylim = c(0,100))
+legend("top", rownames(MarketSimulation), col = 1:5, lty = 1, cex=0.75, horiz = T)
+axis(1, at = seq(0, 200, by = 10), las=2, cex.axis=0.9)
+axis(2, at = seq(0, 100, by = 10), cex.axis=0.9)
+
+sharenew <- cbind(share_ms[,1], prices_ms)
+sharenew <- round(apply(share_ms,2,mean),2)
+
+```
+
+\vspace{-5mm}
+
+The mystery product only reaches a maximum market share of about 81\%. With a price around 100 is has only 5\% market share, starting at 140 Euro the market share is below 1\% and starts to approach 0\%.
+Even if the price of mystery product would be 0, some respondents would still prefer to buy the other brands. The market share of Levi's is with almost 6\% the highest as long as the mystery product price is very low. This indicates that especially the Originals stick with their favourite brand.
+
+Within the framework of the survey, only 46\% respondents said that they would consider buying a mystery product. Anyhow, customers that are very price sensitive, such as the Bargain Hunters, will prefer the mystery product if the price is low and the fit as well as the color appeals to their preferences.
+
+\textbf{Optimal Price}
+
+Lastly yet importantly, an (individual) optimal price strategy within a non-reacting competitive market is determined. It aims to maximize the profit while considering the willingness-to-pay (WTP) of the customers.
+
+The profit can be calculated as:
+
+\vspace{-5mm}
+
+\begin{equation}
+Profit = (Optimal Price - Costs) * Market Share * Market Size
+\end{equation}
+
+\vspace{-5mm}
+
+For simplicity the assumed market size is 100k market participants. 
+
+\begin{table}[H]
+\footnotesize
+\centering
+\begin{tabular}{lccccc}
+ \hline
+  & Total Market & Bargain Hunters & Fashionistas & Originals \\
+ \hline\hline
+  Optimal Price & 67 & 66 & 66 & 69 \\
+  Profit (in k €) & 599 & 743 & 763 & 456 \\ 
+ \hline
+\end{tabular}
+ \caption{The optimal price (OP) and profit of the given mystery product in the total market and in each cluster with an assumed market size of 100k}
+    \label{tab:op}
+\end{table}
+
+\vspace{-5mm}
+
+The optimal price for the Originals is higher than for the other group which is due to the higher income and higher willingness to spend much money on a jeans. The lower profit indicates a lower market share which is in line with the observed behaviour of the Originals. Mostly, they prefer to spend more money on a Levi's jeans for instance. The market share of the Bargain Hunters is a little smaller than for the Fashionistas even though the price is the same. Table \ref{tab:ms} gives an indication that the Bargain Hunters prefer Guess a little more than the mystery product if the price is very similar. In fact, when having a look at the shares for mystery and Guess, the Bargain Hunters have a slightly little lower share percentage on the mystery product but therefore, a slightly higher share percentage of Guess.
+
+Besides an uniform or a clustered pricing strategy, also individual optimal prices can be considered. The minima and maxima of the computed prices and profits are presented and discussed below:
+
+\begin{table}[H]
+\footnotesize
+\centering
+\begin{tabular}{lccl}
+ \hline
+  & Price & Profit (in k €) & Cluster Membership \\
+ \hline\hline
+  Highest OP & 98 & 472 &  Originals \\
+  Lowest OP & 55 & 411/428 &  Bargain Hunters \\
+ \hline
+  Highest Profit & 76 & 1388 & Bargain Hunters \\
+  Lowest Profit & 87 & 7.65 & Originals \\
+  \hline
+  Range & 43 & 1380 & \\
+ \hline
+\end{tabular}
+ \caption{Comparison of the highest and lowest individual optimal price (OP) and profit as a results of individual targeting}
+    \label{tab:indivop}
+\end{table}
+
+\vspace{-5mm}
+
+Table \ref{tab:indivop} shows that customers' willingness-to-pay for a jeans varies strongly. The difference between the maximum and the minimum optimal is price 43 Euro and the differences of the profits in the market with 100k participants is 1388k Euro.
+
+The highest profit is with a lower price and the lowest profit with a higher price which indicates a negative relationship between price and profit. The computation of the correlation confirms this indication. The correlation is -0.42.
+
+```{r op_profit, include=F}
+
+'OPTIMAL PRICING/ MAXIMIZED PROFIT'
+
+  #prep
+brand <- 1
+prices <- seq(0, 2, 0.01)
+
+head(prices)
+X <- MarketSimulation
+
+  #total market
+profit_total <- matrix(0, length(prices), nrow(X))
+for (k in seq_along(prices)) {
+  X[brand, "price"] <- prices[k]
+  profit_total[k,] <- (prices[k]-0.44)*predict.mxl(X, mxl_betai)
+}
+
+prices_profit <- prices*100
+#2x 100 für share (market size) und profit
+profit_total <- cbind(profit_total, prices, rowSums(profit_total[,1:5]))
+plot(prices_profit, profit_total[, brand]*10000, type = "l", ylim = c(0, 1000), xaxt='n',
+     xlab = "Price", ylab = "Profit (in k)", main = "Profit of Mystery Product (Total Market)")
+axis(1, at = seq(0, 200, by = 5), las=2)
+abline(v=profit_total[which(profit_total[,brand] == max(profit_total[,brand])), 6]*100, col = "grey")
+
+  #cl1
+X <- MarketSimulation
+profit_cl1 <- matrix(0, length(prices), nrow(X))
+for (k in seq_along(prices)) {
+  X[brand, "price"] <- prices[k]
+  profit_cl1[k,] <- (prices[k]-0.44)*predict.mxl(X, cl1)
+}
+
+profit_cl1 <- cbind(profit_cl1, prices, rowSums(profit_cl1[,1:5]))
+
+plot(prices_profit, profit_cl1[, brand]*10000, type = "l", ylim = c(0, 1000), xaxt='n',
+     xlab = "Price", ylab = "Profit", main = "Profit of Mystery Product (Total Market)")
+axis(1, at = seq(0, 200, by = 5), las=2)
+abline(v=profit_cl1[which(profit_cl1[,brand] == max(profit_cl1[,brand])), 6]*100, col = "grey")
+
+  #cl2
+profit_cl2 <- matrix(0, length(prices), nrow(X))
+for (k in seq_along(prices)) {
+  X[brand, "price"] <- prices[k]
+  profit_cl2[k,] <- (prices[k]-0.44)*predict.mxl(X, cl2)
+}
+
+profit_cl2 <- cbind(profit_cl2, prices, rowSums(profit_cl2[,1:5]))
+
+plot(prices_profit, profit_cl2[, brand]*10000, type = "l", ylim = c(0, 1000), xaxt='n',
+     xlab = "Price", ylab = "Profit", main = "Profit of Mystery Product (Total Market)")
+axis(1, at = seq(0, 200, by = 5), las=2)
+abline(v=profit_cl2[which(profit_cl2[,brand] == max(profit_cl2[,brand])), 6]*100, col = "grey")
+
+  #cl3
+profit_cl3 <- matrix(0, length(prices), nrow(X))
+for (k in seq_along(prices)) {
+  X[brand, "price"] <- prices[k]
+  profit_cl3[k,] <- (prices[k]-0.44)*predict.mxl(X, cl3)
+}
+
+profit_cl3 <- cbind(profit_cl3, prices, rowSums(profit_cl3[,1:5]))
+
+plot(prices_profit, profit_cl3[, brand]*10000, type = "l", ylim = c(0, 1000), xaxt='n',
+     xlab = "Price", ylab = "Profit", main = "Profit of Mystery Product (Total Market)")
+axis(1, at = seq(0, 200, by = 5), las=2)
+abline(v=profit_cl3[which(profit_cl3[,brand] == max(profit_cl3[,brand])), 6]*100, col = "grey")
+
+  #results
+profit_total[,1] <- profit_total[,1]*10000
+profit_total[,6] <- profit_total[,6]*100
+profit_total <- round(profit_total[which(profit_total[,brand] == max(profit_total[,brand])), c(1,6)],2)
+profit_cl1[,1] <- profit_cl1[,1]*10000
+profit_cl1[,6] <- profit_cl1[,6]*100
+round(profit_cl1[which(profit_cl1[,brand] == max(profit_cl1[,brand])), c(1,6)],2)
+profit_cl2[,1] <- profit_cl2[,1]*10000
+profit_cl2[,6] <- profit_cl2[,6]*100
+round(profit_cl2[which(profit_cl2[,brand] == max(profit_cl2[,brand])), c(1,6)],2)
+profit_cl3[,1] <- profit_cl3[,1]*10000
+profit_cl3[,6] <- profit_cl3[,6]*100
+round(profit_cl3[which(profit_cl3[,brand] == max(profit_cl3[,brand])), c(1,6)],2)
+
+rm(k, prices_ms, sharenew, share_ms, share)
+
+'INDIVIDUAL OPTIMAL PRICE'
+
+#WTP
+WTP_total <- mxl_betai/(-mxl_betai$price)
+
+WTP_cl1 <- cl1/(-cl1$price)
+WTP_cl2 <- cl2/(-cl2$price)
+WTP_cl3 <- cl3/(-cl3$price)
+
+```
+
+
+```{r fig.width=5, fig.height=3.5, fig.cap = "\\label{fig:IndivOP}The scatterplot shows a negative relationship between profit and price", include = T}
+
+brand <- 1
+prices <- seq(0, 2, 0.01)
+
+X <- MarketSimulation
+
+#Individual optimal pricing
+profit_WTP <- matrix(0, length(prices), nrow(X))
+
+list <- matrix(0, 2, nrow(mxl_betai))
+
+list_price <- numeric()
+list_profit <- numeric()
+  
+  for(i in 1:nrow(mxl_betai)) {
+  
+    for (k in seq_along(prices)) {
+    X[brand, "price"] <- prices[k]
+    profit_WTP[k,] <- (prices[k]-0.44)*predict.mxl(X, mxl_betai[i,])
+    }
+    
+    profit_WTP_total <- cbind(profit_WTP, prices, rowSums(profit_WTP[,1:5]))
+    #list contains optimal prices per customer
+    list_price[i] <- profit_WTP_total[which(profit_WTP_total[,brand] == max(profit_WTP_total[,brand])), 6]
+    list_profit[i] <- profit_WTP_total[which(profit_WTP_total[,brand] == max(profit_WTP_total[,brand])), 1]
+}
+list_profit <- round(list_profit*10000)
+list_price <- list_price*100
+
+#relationship of profit and price
+plot(list_profit, list_price, xlab = "Profit in a market with 100k participants", ylab = "Price", main = "Relationship between Individual Price and Profit", cex.main = 1.1, cex.lab = 0.9, cex.lab = 0.9)
+
+```
+
+\vspace{-5mm}
+
+The correlation is in line with the assumptions of the formed clusters. Bargain Hunters like cheap prices and until a certain price, they are willing to buy the mystery product. Contrary, the Originals are willing to pay more for a product but they strongly prefer the jeans brand Levi's. Hence, the market shares for buying a mystery product is way lower as for the Bargain Hunters and this directly effects the aggregated profit.
+
+The average profit of targeted pricing per customer is 62.8 Euro. For an uniform pricing strategy it is only 59.9 Euro per customer. Hence, the profit advantages of targeted pricing versus uniform pricing is on average 2.9 Euro per customer. In the assumed market of 100k participants that would be a total profit advantage of 290k Euro in comparision to uniform pricing. However, in a real life setting, targeted pricing is more costly than an uniform pricing strategy. The higher costs would reduce this profit advantage a bit.
+
