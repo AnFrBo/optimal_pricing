@@ -1,0 +1,13 @@
+Setup
+
+I. Download data and code folder
+
+II. Installing all libraries specified in requirements.txt
+
+III. Set wd to data folder
+
+IV. Run R file(s)
+
+	a) subsection 00-05 (keep order)
+	b) full_code.R
+	c) alt.: CACI1920_ABothe_576309.Rmd 

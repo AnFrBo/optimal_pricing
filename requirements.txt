@@ -1,0 +1,7 @@
+#please install/load the following libraries
+
+library(fpc) #for cluster statistics
+library(mlr) #for creating dummy variables
+library(psych) #for factor analysis
+library(cluster) #for silhouette plot
+library(RColorBrewer) #for coloring silhouette plot
