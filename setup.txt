@@ -1,12 +1,12 @@
 Setup
 
-I. Download data and code folder
+1. Download data and code folder
 
-II. Installing all libraries specified in requirements.txt
+2. Installing all libraries specified in requirements.txt
 
-III. Set wd to data folder
+3. Set wd to data folder
 
-IV. Run R file(s)
+4. Run R file(s)
 
 	a) subsection 00-05 (keep order)
 	b) full_code.R
