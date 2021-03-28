@@ -5,7 +5,7 @@ effective targeting is the detection of customer groups that behave similarly an
 
 The underlying data set was collected within the seminar “Customer Analytics and Customer Insights” in 2019/20 by the students. The survey deals with the preferences regarding the purchase of 10 different jeans with a focus on Levi’s, Tommy Hilfiger, Guess and a mystery product. After data cleaning, in total 780 respondents participated. For the analysis only a subset of 650 respondents is selected – depending on the matrikel number functioning as an unique ID.
 
-All code was written in RStudio.
+All code was written in R within RStudio.
 
 ## Organization
 
